@@ -11,11 +11,6 @@
 #include "system/log.h"
 #include "system/stacktrace.h"
 
-#define RATIO_X 16.0f
-#define RATIO_Y 9.0f
-
-static Vec2f effective_ratio(const SDL_Rect *view_port);
-static Vec2f effective_scale(const SDL_Rect *view_port);
 static Triangle camera_triangle(const Camera *camera,
                                 const Triangle t);
 
@@ -25,10 +20,9 @@ static SDL_Color camera_sdl_color(const Camera *camera, Color color)
 }
 
 Camera create_camera(SDL_Renderer *renderer,
-                     Sprite_font *font)
+                     Sprite_font font)
 {
     trace_assert(renderer);
-    trace_assert(font);
 
     Camera camera = {
         .scale = 1.0f,
@@ -172,18 +166,16 @@ int camera_render_text(const Camera *camera,
     SDL_Rect view_port;
     SDL_RenderGetViewport(camera->renderer, &view_port);
 
-    const Vec2f scale = effective_scale(&view_port);
+    const Vec2f scale = camera->effective_scale;
     const Vec2f screen_position = camera_point(camera, position);
 
-    if (sprite_font_render_text(
-            camera->font,
-            camera->renderer,
-            screen_position,
-            vec(size.x * scale.x * camera->scale, size.y * scale.y * camera->scale),
-            camera->blackwhite_mode ? color_desaturate(c) : c,
-            text) < 0) {
-        return -1;
-    }
+    sprite_font_render_text(
+        &camera->font,
+        camera->renderer,
+        screen_position,
+        vec(size.x * scale.x * camera->scale, size.y * scale.y * camera->scale),
+        camera->blackwhite_mode ? color_desaturate(c) : c,
+        text);
 
     return 0;
 }
@@ -312,22 +304,6 @@ int camera_is_text_visible(const Camera *camera,
 
 /* ---------- Private Function ---------- */
 
-static Vec2f effective_ratio(const SDL_Rect *view_port)
-{
-    if ((float) view_port->w / RATIO_X > (float) view_port->h / RATIO_Y) {
-        return vec(RATIO_X, (float) view_port->h / ((float) view_port->w / RATIO_X));
-    } else {
-        return vec((float) view_port->w / ((float) view_port->h / RATIO_Y), RATIO_Y);
-    }
-}
-
-static Vec2f effective_scale(const SDL_Rect *view_port)
-{
-    return vec_entry_div(
-        vec((float) view_port->w, (float) view_port->h),
-        vec_scala_mult(effective_ratio(view_port), 50.0f));
-}
-
 Vec2f camera_point(const Camera *camera, const Vec2f p)
 {
     SDL_Rect view_port;
@@ -337,7 +313,7 @@ Vec2f camera_point(const Camera *camera, const Vec2f p)
         vec_scala_mult(
             vec_entry_mult(
                 vec_sum(p, vec_neg(camera->position)),
-                effective_scale(&view_port)),
+                camera->effective_scale),
             camera->scale),
         vec((float) view_port.w * 0.5f,
             (float) view_port.h * 0.5f));
@@ -388,7 +364,7 @@ Vec2f camera_map_screen(const Camera *camera,
     SDL_Rect view_port;
     SDL_RenderGetViewport(camera->renderer, &view_port);
 
-    Vec2f es = effective_scale(&view_port);
+    Vec2f es = camera->effective_scale;
     es.x = 1.0f / es.x;
     es.y = 1.0f / es.y;
 
@@ -436,17 +412,17 @@ int camera_fill_rect_screen(const Camera *camera,
 
 }
 
-int camera_render_text_screen(const Camera *camera,
-                              const char *text,
-                              Vec2f size,
-                              Color color,
-                              Vec2f position)
+void camera_render_text_screen(const Camera *camera,
+                               const char *text,
+                               Vec2f size,
+                               Color color,
+                               Vec2f position)
 {
     trace_assert(camera);
     trace_assert(text);
 
-    return sprite_font_render_text(
-        camera->font,
+    sprite_font_render_text(
+        &camera->font,
         camera->renderer,
         position,
         size,
@@ -512,11 +488,6 @@ int camera_draw_thicc_rect_screen(const Camera *camera,
     return 0;
 }
 
-const Sprite_font *camera_font(const Camera *camera)
-{
-    return camera->font;
-}
-
 int camera_draw_line(const Camera *camera,
                      Vec2f begin, Vec2f end,
                      Color color)
@@ -544,4 +515,21 @@ int camera_draw_line(const Camera *camera,
     }
 
     return 0;
+}
+
+static inline
+Vec2f effective_ratio(const SDL_Rect *view_port)
+{
+    if ((float) view_port->w / CAMERA_RATIO_X > (float) view_port->h / CAMERA_RATIO_Y) {
+        return vec(CAMERA_RATIO_X, (float) view_port->h / ((float) view_port->w / CAMERA_RATIO_X));
+    } else {
+        return vec((float) view_port->w / ((float) view_port->h / CAMERA_RATIO_Y), CAMERA_RATIO_Y);
+    }
+}
+
+Vec2f effective_scale(const SDL_Rect *view_port)
+{
+    return vec_entry_div(
+        vec((float) view_port->w, (float) view_port->h),
+        vec_scala_mult(effective_ratio(view_port), 50.0f));
 }

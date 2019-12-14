@@ -7,101 +7,52 @@
 #include "system/line_stream.h"
 #include "system/str.h"
 #include "level_metadata.h"
+#include "math/extrema.h"
 
-struct LevelMetadata
+int metadata_load_from_line_stream(LevelMetadata *metadata,
+                                   LineStream *line_stream,
+                                   const char *filepath)
 {
-    Lt *lt;
-    const char *version;
-    const char *title;
-};
-
-LevelMetadata *create_level_metadata(const char *version, const char *title)
-{
-    trace_assert(version);
-    trace_assert(title);
-
-    Lt *lt = create_lt();
-
-    LevelMetadata *level_metadata = PUSH_LT(
-        lt, nth_calloc(1, sizeof(LevelMetadata)), free);
-    if (level_metadata == NULL) {
-        RETURN_LT(lt, NULL);
-    }
-    level_metadata->lt = lt;
-
-    level_metadata->version = PUSH_LT(
-        lt,
-        trim_endline(string_duplicate(version, NULL)),
-        free);
-    if (level_metadata->version == NULL) {
-        RETURN_LT(lt, NULL);
-    }
-
-    level_metadata->title = PUSH_LT(
-        lt,
-        trim_endline(string_duplicate(title, NULL)),
-        free);
-    if (level_metadata->title == NULL) {
-        RETURN_LT(lt, NULL);
-    }
-
-    return level_metadata;
-}
-
-LevelMetadata *create_level_metadata_from_file(const char *filename)
-{
-    trace_assert(filename);
-
-    LineStream *line_stream = create_line_stream(filename, "r", 256);
-    if (line_stream == NULL) {
-        return NULL;
-    }
-
-    LevelMetadata *level_metadata = create_level_metadata_from_line_stream(line_stream);
-    destroy_line_stream(line_stream);
-
-    return level_metadata;
-}
-
-LevelMetadata *create_level_metadata_from_line_stream(LineStream *line_stream)
-{
+    trace_assert(metadata);
     trace_assert(line_stream);
 
-    Lt *lt = create_lt();
+    memset(metadata->version, 0, METADATA_VERSION_MAX_SIZE);
+    memset(metadata->title, 0, METADATA_TITLE_MAX_SIZE);
+    memset(metadata->filepath, 0, METADATA_FILEPATH_MAX_SIZE);
 
-    const char *version_line = PUSH_LT(
-            lt,
-            string_duplicate(line_stream_next(line_stream), NULL),
-            free);
-    if (version_line == NULL) {
-        RETURN_LT(lt, NULL);
-    }
+    const char *line = line_stream_next(line_stream);
+    if (line == NULL) return -1;
 
-    const char *title_line = PUSH_LT(
-            lt,
-            string_duplicate(line_stream_next(line_stream), NULL),
-            free);
-    if (title_line == NULL) {
-        RETURN_LT(lt, NULL);
-    }
+    memcpy(metadata->version,
+           line,
+           min_size_t(strlen(line), METADATA_VERSION_MAX_SIZE - 1));
+    trim_endline(metadata->version);
 
-    return create_level_metadata(version_line, title_line);
+    line = line_stream_next(line_stream);
+    if (line == NULL) return -1;
+
+    memcpy(metadata->title,
+           line,
+           min_size_t(strlen(line), METADATA_VERSION_MAX_SIZE - 1));
+    trim_endline(metadata->title);
+
+    memcpy(metadata->filepath,
+           filepath,
+           min_size_t(strlen(filepath), METADATA_FILEPATH_MAX_SIZE - 1));
+    trim_endline(metadata->filepath);
+
+    return 0;
 }
 
-void destroy_level_metadata(LevelMetadata *level_metadata)
+int metadata_load_from_file(LevelMetadata *metadata, const char *filepath)
 {
-    trace_assert(level_metadata);
-    RETURN_LT0(level_metadata->lt);
-}
+    trace_assert(metadata);
+    trace_assert(filepath);
 
-const char *level_metadata_version(const LevelMetadata *level_metadata)
-{
-    trace_assert(level_metadata);
-    return level_metadata->version;
-}
+    LineStream *line_stream = create_line_stream(filepath, "r", 256);
+    if (line_stream == NULL) return -1;
 
-const char *level_metadata_title(const LevelMetadata *level_metadata)
-{
-    trace_assert(level_metadata);
-    return level_metadata->title;
+    int err = metadata_load_from_line_stream(metadata, line_stream, filepath);
+    destroy_line_stream(line_stream);
+    return err;
 }

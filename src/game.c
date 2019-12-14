@@ -19,20 +19,12 @@
 #include "game/settings.h"
 #include "game/credits.h"
 
-typedef enum Game_state {
-    GAME_STATE_LEVEL = 0,
-    GAME_STATE_LEVEL_PICKER,
-    GAME_STATE_LEVEL_EDITOR,
-    GAME_STATE_CREDITS,
-    GAME_STATE_SETTINGS,
-    GAME_STATE_QUIT
-} Game_state;
 
 typedef struct Game {
     Lt *lt;
 
     Game_state state;
-    Sprite_font *font;
+    Sprite_font font;
     LevelPicker *level_picker;
     LevelEditor *level_editor;
     Credits *credits;
@@ -46,9 +38,11 @@ typedef struct Game {
     int console_enabled;
 } Game;
 
-static
 void game_switch_state(Game *game, Game_state state)
 {
+    if (state == GAME_STATE_LEVEL_PICKER) {
+        level_picker_clean_selection(game->level_picker);
+    }
     game->camera = create_camera(game->renderer, game->font);
     game->state = state;
 }
@@ -68,21 +62,13 @@ Game *create_game(const char *level_folder,
     }
     game->lt = lt;
 
-    game->font = PUSH_LT(
-        lt,
-        create_sprite_font_from_file(
-            "./assets/images/charmap-oldschool.bmp",
-            renderer),
-        destroy_sprite_font);
-    if (game->font == NULL) {
-        RETURN_LT(lt, NULL);
-    }
+    game->font.texture = load_bmp_font_texture(
+        renderer,
+        "./assets/images/charmap-oldschool.bmp");
 
     game->level_picker = PUSH_LT(
         lt,
-        create_level_picker(
-            game->font,
-            level_folder),
+        create_level_picker(level_folder),
         destroy_level_picker);
     if (game->level_picker == NULL) {
         RETURN_LT(lt, NULL);
@@ -220,6 +206,11 @@ int game_update(Game *game, float delta_time)
 {
     trace_assert(game);
     trace_assert(delta_time > 0.0f);
+
+    // TODO: effective scale recalculation should be probably done only when the size of the window is changed
+    SDL_Rect view_port;
+    SDL_RenderGetViewport(game->camera.renderer, &view_port);
+    game->camera.effective_scale = effective_scale(&view_port);
 
     if (game->console_enabled) {
         if (console_update(game->console, delta_time) < 0) {
@@ -453,7 +444,7 @@ int game_event(Game *game, const SDL_Event *event)
             switch (event->key.keysym.sym) {
             case SDLK_BACKQUOTE:
             case SDLK_c: {
-                if (event->key.keysym.mod == 0) {
+                if (event->key.keysym.mod == KMOD_NONE || event->key.keysym.mod == KMOD_NUM) {
                     SDL_StartTextInput();
                     game->console_enabled = 1;
                     console_slide_down(game->console);

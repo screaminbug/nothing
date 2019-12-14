@@ -170,6 +170,9 @@ static int console_eval_input(Console *console)
         if (game_load_level(console->game, level_name) < 0) {
             console_log_push_line(console->console_log, "Could not load level", NULL, CONSOLE_ERROR);
         }
+    } else if (token_equals_str(command, "menu")) {
+        console_log_push_line(console->console_log, "Loading menu", NULL, CONSOLE_FOREGROUND);
+        game_switch_state(console->game, GAME_STATE_LEVEL_PICKER);
     } else {
         console_log_push_line(console->console_log, "Unknown command", NULL, CONSOLE_ERROR);
     }
@@ -245,11 +248,9 @@ int console_render(const Console *console,
         return -1;
     }
 
-    if (console_log_render(console->console_log,
-                           camera,
-                           vec(0.0f, y)) < 0) {
-        return -1;
-    }
+    console_log_render(console->console_log,
+                       camera,
+                       vec(0.0f, y));
 
     if (edit_field_render_screen(console->edit_field,
                                  camera,
