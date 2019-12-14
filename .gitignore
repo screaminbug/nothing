@@ -10,3 +10,4 @@ gmon.out
 *.output
 .idea/
 CMakeFiles
+cmake-build-debug/
